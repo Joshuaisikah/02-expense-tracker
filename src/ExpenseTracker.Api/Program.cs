@@ -1,6 +1,7 @@
 using ExpenseTracker.Api.Dtos;
 using ExpenseTracker.Api.Repository;
 using ExpenseTracker.Api.Services;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<ExpenseTrackerDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
+builder.Services.AddValidation();
 
 builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<ExpenseService>();
@@ -40,27 +42,47 @@ app.MapGet(
         return category is not null ? Results.Ok(category) : Results.NotFound();
     }
 );
+
 app.MapPost(
     "/api/categories",
-    async (CreateCategoryRequest request, CategoryService categoryService, CancellationToken ct) =>
+    async (CreateCategoryRequest request, CategoryService service, CancellationToken ct) =>
     {
-        var category = await categoryService.CreateAsync(request, ct);
-        return Results.Created($"/api/categories/{category.Id}", category);
+        var (result, category) = await service.CreateAsync(request, ct);
+
+        return result switch
+        {
+            CreateCategoryResult.Created => Results.Created(
+                $"/api/categories/{category!.Id}",
+                category
+            ),
+            CreateCategoryResult.DuplicateName => Results.Conflict(
+                new { message = "A category with this name already exists." }
+            ),
+            _ => throw new InvalidOperationException(
+                $"Unhandled {nameof(CreateCategoryResult)}: {result}"
+            ),
+        };
     }
 );
 app.MapPost(
     "/api/expenses",
-    async (CreateExpenseRequest request, ExpenseService expenseService, CancellationToken ct) =>
+    async (CreateExpenseRequest request, ExpenseService service, CancellationToken ct) =>
     {
-        var expense = await expenseService.CreateAsync(request, ct);
+        var expense = await service.CreateAsync(request, ct);
         return expense is not null
             ? Results.Created($"/api/expenses/{expense.Id}", expense)
-            : Results.BadRequest(new { message = "Invalid category." });
+            : Results.BadRequest(
+                new { message = "categoryId does not refer to an existing category." }
+            );
     }
 );
 app.MapGet(
     "/api/expenses",
-    async (ExpenseFilter filter, ExpenseService expenseService, CancellationToken ct) =>
+    async (
+        [AsParameters] ExpenseFilter filter,
+        ExpenseService expenseService,
+        CancellationToken ct
+    ) =>
     {
         var expenses = await expenseService.GetPagedAsync(filter, ct);
         return Results.Ok(expenses);
@@ -95,6 +117,43 @@ app.MapDelete(
                 new { message = "Cannot delete category because it is in use." }
             ),
             _ => Results.StatusCode(500),
+        };
+    }
+);
+app.MapPut(
+    "/api/categories/{id:int}",
+    async (int id, UpdateCategoryRequest request, CategoryService service, CancellationToken ct) =>
+    {
+        var (result, category) = await service.UpdateCategoryAsync(id, request, ct);
+        return result switch
+        {
+            UpdateCategoryResult.Updated => Results.Ok(category),
+            UpdateCategoryResult.NotFound => Results.NotFound(),
+            UpdateCategoryResult.DuplicateName => Results.Conflict(
+                new { message = "A category with this name already exists." }
+            ),
+            _ => throw new InvalidOperationException(
+                $"Unhandled {nameof(UpdateCategoryResult)}: {result}"
+            ),
+        };
+    }
+);
+
+app.MapPut(
+    "/api/expenses/{id:int}",
+    async (int id, UpdateExpenseRequest request, ExpenseService service, CancellationToken ct) =>
+    {
+        var (result, expense) = await service.UpdateExpenseAsync(id, request, ct);
+        return result switch
+        {
+            UpdateExpenseResult.Updated => Results.Ok(expense),
+            UpdateExpenseResult.NotFound => Results.NotFound(),
+            UpdateExpenseResult.CategoryNotFound => Results.BadRequest(
+                new { message = "categoryId does not refer to an existing category." }
+            ),
+            _ => throw new InvalidOperationException(
+                $"Unhandled {nameof(UpdateExpenseResult)}: {result}"
+            ),
         };
     }
 );

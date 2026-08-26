@@ -7,16 +7,8 @@ public class ExpenseFilter
     public DateOnly? To { get; set; }
     public decimal? MinAmount { get; set; }
     public decimal? MaxAmount { get; set; }
-    private int _page { get; set; } = 1;
-    public int Page
-    {
-        get => _page;
-        set => _page = Math.Max(value, 1);
-    }
-    private int _pageSize { get; set; } = 10;
-    public int PageSize
-    {
-        get => _pageSize;
-        set => _pageSize = Math.Clamp(value, 1, 100);
-    }
+    public int? Page { get; set; }
+    public int? PageSize { get; set; }
+    public int EffectivePage => Math.Max(Page ?? 1, 1);
+    public int EffectivePageSize => Math.Clamp(PageSize ?? 10, 1, 100);
 }

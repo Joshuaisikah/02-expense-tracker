@@ -12,6 +12,19 @@ public enum DeleteCategoryResult
     InUse,
 }
 
+public enum UpdateCategoryResult
+{
+    Updated,
+    NotFound,
+    DuplicateName,
+}
+
+public enum CreateCategoryResult
+{
+    Created,
+    DuplicateName,
+}
+
 public class CategoryService
 {
     private readonly ExpenseTrackerDbContext _context;
@@ -34,12 +47,49 @@ public class CategoryService
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<CategoryDto> CreateAsync(CreateCategoryRequest request, CancellationToken ct)
+    public async Task<(CreateCategoryResult Result, CategoryDto? Category)> CreateAsync(
+        CreateCategoryRequest request,
+        CancellationToken ct
+    )
     {
         var category = new Category { Name = request.Name };
         _context.Categories.Add(category);
-        await _context.SaveChangesAsync(ct);
-        return new CategoryDto(category.Id, category.Name);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+            return (CreateCategoryResult.Created, new CategoryDto(category.Id, category.Name));
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            return (CreateCategoryResult.DuplicateName, null);
+        }
+    }
+
+    public async Task<(UpdateCategoryResult Result, CategoryDto? category)> UpdateCategoryAsync(
+        int categoryId,
+        UpdateCategoryRequest request,
+        CancellationToken ct
+    )
+    {
+        var category = await _context.Categories.FindAsync(new object[] { categoryId }, ct);
+        if (category is null)
+        {
+            return (UpdateCategoryResult.NotFound, null);
+        }
+        category.Name = request.Name;
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+            return (UpdateCategoryResult.Updated, new CategoryDto(category.Id, category.Name));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return (UpdateCategoryResult.NotFound, null);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            return (UpdateCategoryResult.DuplicateName, null);
+        }
     }
 
     public async Task<CategorySummaryDto?> GetCategorySummaryAsync(
@@ -100,5 +150,11 @@ public class CategoryService
     private static bool IsForeignKeyViolation(DbUpdateException ex)
     {
         return ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23503";
+    }
+
+    // Postgres error code 23505 = unique_violation.
+    private static bool IsUniqueViolation(DbUpdateException ex)
+    {
+        return ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505";
     }
 }
