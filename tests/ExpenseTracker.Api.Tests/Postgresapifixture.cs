@@ -7,16 +7,6 @@ using Xunit;
 
 namespace ExpenseTracker.Api.Tests;
 
-/// <summary>
-/// Shared fixture for concurrency tests. Boots the real app in-process (WebApplicationFactory)
-/// against a real, throwaway Postgres container (Testcontainers) — never against the EF Core
-/// in-memory provider, which has no unique constraints, no transactions, and no way to reproduce
-/// any of the races this suite exists to catch.
-///
-/// One fixture instance is shared across all tests in a collection (see [CollectionDefinition]
-/// below) so the container only starts/stops once per test run, not once per test — starting a
-/// container is slow, and these tests need many concurrent requests, not many containers.
-/// </summary>
 public class PostgresApiFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16").Build();
@@ -70,9 +60,5 @@ public class PostgresApiFixture : IAsyncLifetime
     }
 }
 
-/// <summary>
-/// xUnit collection definition — every test class marked [Collection("Postgres")] shares one
-/// PostgresApiFixture instance (one container, one factory) instead of each getting its own.
-/// </summary>
 [CollectionDefinition("Postgres")]
 public class PostgresCollection : ICollectionFixture<PostgresApiFixture> { }
