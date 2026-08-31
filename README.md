@@ -6,17 +6,14 @@ first project with relationships, DTOs, filtering, and pagination.
 ## Setup
 
 1. `dotnet restore`
-2. Start Postgres (see `docker-compose.yml`):
-   ```bash
-   docker compose up -d
-   ```
-3. Update `ConnectionStrings:DefaultConnection` in `appsettings.Development.json` if your
+   2
+2. Update `ConnectionStrings:DefaultConnection` in `appsettings.Development.json` if your
    local Postgres port/credentials differ from the compose defaults.
-4. Apply migrations:
+3. Apply migrations:
    ```bash
    dotnet ef database update --project src/ExpenseTracker.Api
    ```
-5. Run:
+4. Run:
    ```bash
    dotnet run --project src/ExpenseTracker.Api
    ```
@@ -34,19 +31,11 @@ counting and deleting.
 the insert and catches the foreign-key violation (`23503`) if it fails, translating it
 to `400`. Checking existence first and inserting second has a gap — the category can be
 deleted in between — so the check would be stale by the time the insert runs. The insert
-attempt *is* the check. Same reasoning for the unique category-name constraint (`23505`
+attempt _is_ the check. Same reasoning for the unique category-name constraint (`23505`
 → `409` on duplicate names).
 
-**Postgres error codes are named constants** (`PostgresErrorCodes.ForeignKeyViolation`,
-`PostgresErrorCodes.UniqueViolation`), not bare string literals repeated at each call
-site. Earlier revisions had four separate copies of the raw SQLSTATE string across two
-files; a single find-and-replace once flipped one of them to the wrong code with no
-compiler warning, because a `string == "23505"` check type-checks regardless of whether
-`"23505"` is the right code for what the method claims to test. Naming the constant
-removes the possibility of that particular drift.
-
 **Deleted-out-from-under-you and duplicate-key conflicts return `404`/`409` respectively;
-a row that's merely *changed* out from under you is not yet detected.** `PUT` on a
+a row that's merely _changed_ out from under you is not yet detected.** `PUT` on a
 category or expense whose row still exists, but was modified by a concurrent request
 between the read and the write, currently succeeds silently for both writers — one
 write is lost with no signal to the losing caller. This is a known, deliberately
@@ -54,7 +43,7 @@ deferred gap; see below.
 
 **Pagination uses `int?` with computed `EffectivePage`/`EffectivePageSize` properties,**
 not plain `int` with a default. Under Minimal API's `[AsParameters]` binding, a
-non-nullable value type absent from the query string is a binding *failure*, not a
+non-nullable value type absent from the query string is a binding _failure_, not a
 fallback to the property's default — so `GET /api/expenses` with no query string at all
 would 400 if `Page`/`PageSize` were plain `int`. Making them nullable lets the request
 bind cleanly when absent; the clamp (`Math.Clamp(value, 1, 100)` for page size, a floor
@@ -98,8 +87,8 @@ timezone component to introduce an off-by-one at the edges of a range.
 **Optimistic concurrency (lost update on concurrent same-row updates).** Two concurrent
 `PUT` requests renaming the same category both succeed — each `UPDATE ... WHERE Id = @id`
 affects exactly one row, so EF Core's existing `DbUpdateConcurrencyException` handling
-never fires; that exception only fires when a row has *vanished* (deleted underneath a
-writer), not when it's merely been *changed*. The fix is a concurrency token — Postgres's
+never fires; that exception only fires when a row has _vanished_ (deleted underneath a
+writer), not when it's merely been _changed_. The fix is a concurrency token — Postgres's
 `xmin` system column, marked with `IsRowVersion()` — which would make every `UPDATE`'s
 `WHERE` clause encode "only if this row is still the version I read." This is
 deliberately deferred rather than fixed here: project 03 on the ladder (Ticket

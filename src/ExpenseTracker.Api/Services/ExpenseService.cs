@@ -140,7 +140,6 @@ public class ExpenseService
         {
             return false;
         }
-        _context.Expenses.Attach(expense);
 
         _context.Expenses.Remove(expense);
         try
@@ -170,7 +169,6 @@ public class ExpenseService
             .FirstOrDefaultAsync(ct);
     }
 
-    // Postgres error code 23505 = unique_violation.
     private static bool IsForeignKeyViolation(DbUpdateException ex)
     {
         return ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23503";

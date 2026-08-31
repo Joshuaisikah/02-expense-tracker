@@ -152,7 +152,6 @@ public class CategoryService
         return ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23503";
     }
 
-    // Postgres error code 23505 = unique_violation.
     private static bool IsUniqueViolation(DbUpdateException ex)
     {
         return ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505";
