@@ -97,13 +97,6 @@ its core new concept, with a concurrent-purchase test as the forcing function to
 whichever approach is chosen actually works. Solving it properly here would pre-empt
 that project's entire point.
 
-**No automated tests.** Every acceptance criterion in this session was verified by
-running curl against a live, throwaway Postgres container by hand — including two real
-concurrency races (40 concurrent deletes on the same row; 30 concurrent update-vs-delete
-races on both resources) that would be far more valuable as permanent, repeatable xUnit
-tests than as one-off manual runs. Prioritized getting the behavior correct and reviewed
-first; the tests that would lock that behavior in place don't exist yet.
-
 **`Range(0.01, double.MaxValue)` on `Amount` uses the `double`-typed overload of
 `RangeAttribute`,** so the bound is parsed through binary floating point before being
 compared against a `decimal` value — a small inconsistency in a project whose whole
